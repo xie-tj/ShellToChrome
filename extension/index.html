@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shell to Chrome</title>
+    <link rel="stylesheet" href="vendor/xterm.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand" aria-label="Shell to Chrome">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <div>
+            <strong>SHELL/CHROME</strong>
+            <span>LOCAL DEBUG COCKPIT</span>
+          </div>
+        </div>
+
+        <div class="workspace" title="Claude Code 和终端使用的工作目录">
+          <span>WORKSPACE</span>
+          <strong id="workspacePath">等待本地桥接程序</strong>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="settingsButton" class="icon-button" type="button" aria-label="连接设置" title="连接设置">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Zm8-3.25-2.08-1.2.03-.8-.03-.8L20 8l-2-3.46-2.08 1.2a7.7 7.7 0 0 0-1.39-.8V2.5h-4v2.4c-.5.22-.97.5-1.4.82L7.05 4.54 5.05 8l2.08 1.2-.03.8.03.8L5.05 12l2 3.46 2.08-1.2c.43.32.9.6 1.4.82v2.42h4v-2.4c.5-.22.96-.5 1.39-.82l2.08 1.18L20 12Z"/></svg>
+          </button>
+          <div id="connectionBadge" class="connection-badge is-offline" role="status">
+            <span></span><b>未连接</b>
+          </div>
+        </div>
+      </header>
+
+      <main class="workbench">
+        <section class="terminal-panel" aria-labelledby="terminalHeading">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">TERMINAL / PTY</span>
+              <h1 id="terminalHeading">实时终端</h1>
+            </div>
+            <div class="terminal-meta">
+              <span id="terminalPid">PID —</span>
+              <div class="terminal-actions" aria-label="终端控制">
+                <button id="newTerminalButton" class="text-button is-primary" type="button">新建</button>
+                <button id="restartTerminalButton" class="text-button" type="button">重启</button>
+                <button id="closeTerminalButton" class="text-button is-danger" type="button">关闭</button>
+                <button id="clearButton" class="text-button" type="button">清屏</button>
+              </div>
+            </div>
+          </div>
+          <div class="terminal-frame">
+            <div class="scanline" aria-hidden="true"></div>
+            <div id="terminal" aria-label="交互式终端"></div>
+          </div>
+          <footer class="terminal-footer">
+            <span><kbd>⌘</kbd><kbd>K</kbd> 清屏</span>
+            <span>输入内容会直接发送到本机 shell</span>
+          </footer>
+        </section>
+
+        <section class="ai-panel" aria-labelledby="aiHeading">
+          <div class="panel-heading ai-heading">
+            <div>
+              <span class="eyebrow">CLAUDE CODE / AUTO</span>
+              <h2 id="aiHeading">调试协作</h2>
+            </div>
+            <div id="aiStatus" class="ai-status"><span></span>空闲</div>
+          </div>
+
+          <div class="autonomy-strip" role="note">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19L12 3Zm0 5 5.2 9H6.8L12 8Zm-1 2.5v3.8h2v-3.8h-2Zm0 5.2v2h2v-2h-2Z"/></svg>
+            <div>
+              <strong>全自动调试模式</strong>
+              <span>Claude Code 可在工作目录中读取、修改并执行命令。不可逆或对外发布操作仍会被阻止。</span>
+            </div>
+          </div>
+
+          <div id="conversation" class="conversation" aria-live="polite">
+            <div class="empty-state" id="emptyState">
+              <div class="prompt-glyph" aria-hidden="true"><span>›_</span></div>
+              <h3>把故障交给 Claude Code</h3>
+              <p>它会检查当前项目、运行命令、修改文件并验证结果。所有工具动作都会记录在这里。</p>
+              <div class="suggestions">
+                <button type="button" data-prompt="检查这个项目，找出启动失败的原因并修复它。">诊断启动失败</button>
+                <button type="button" data-prompt="运行现有测试，分析失败项并修复根因。">修复失败测试</button>
+                <button type="button" data-prompt="查看项目当前状态，告诉我最值得先处理的问题。">检查项目状态</button>
+              </div>
+            </div>
+          </div>
+
+          <form id="promptForm" class="prompt-form">
+            <label for="promptInput">给 Claude Code 的任务</label>
+            <div class="prompt-box">
+              <textarea id="promptInput" rows="3" placeholder="描述错误、粘贴日志，或让 Claude Code 自主检查……" required></textarea>
+              <div class="prompt-actions">
+                <span><kbd>⌘</kbd><kbd>↵</kbd> 发送</span>
+                <button id="stopButton" class="stop-button" type="button" hidden>停止</button>
+                <button id="sendButton" class="send-button" type="submit">
+                  <span>发送任务</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 13-7-4 14-2.5-5.5L5 12Zm6.9-.6 1.5 3.2 1.6-5.7-5.3 2.8 2.2-.3Z"/></svg>
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="settingsDialog">
+      <form method="dialog" id="settingsForm">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">LOCAL BRIDGE</span>
+            <h2>连接本机</h2>
+          </div>
+          <button id="settingsCloseButton" class="icon-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <p>启动桥接程序后，把终端中显示的连接令牌粘贴到这里。令牌只保存在本机 Chrome 中。</p>
+        <label for="bridgeUrl">桥接地址</label>
+        <input id="bridgeUrl" name="bridgeUrl" value="ws://127.0.0.1:43110" spellcheck="false" />
+        <label for="bridgeToken">连接令牌</label>
+        <input id="bridgeToken" name="bridgeToken" type="password" autocomplete="off" placeholder="粘贴启动时显示的令牌" />
+        <div class="dialog-actions">
+          <button id="settingsCancelButton" type="button" class="secondary-button">取消</button>
+          <button id="connectButton" value="default" class="primary-button">保存并连接</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="vendor/xterm.js"></script>
+    <script src="vendor/xterm-addon-fit.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

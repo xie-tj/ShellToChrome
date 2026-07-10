@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.log
+.env
+coverage/
+extension/vendor/
+.chrome-test-profile/
+.chromium-test-profile/
+screenshot-*.png
