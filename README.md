@@ -26,8 +26,10 @@
 Bridge 默认只监听 `127.0.0.1:43110`。每次启动会生成随机连接令牌，并拒绝：
 
 - 非 loopback 请求；
-- 非允许来源的 WebSocket 连接；
+- 非允许来源的 WebSocket 连接；网页来源仅接受 `127.0.0.1`、`localhost` 或 `[::1]`，当前实现接受任意 `chrome-extension:` 来源，并未绑定特定扩展 ID；
 - 未携带正确令牌的连接。
+
+令牌通过 WebSocket URL 的 query parameter 传递，因此不要分享包含令牌的连接 URL、控制台记录、浏览器存储导出或截图。真正的访问门槛是 loopback 网络可达性与令牌的组合。
 
 ## 环境要求
 
@@ -89,6 +91,8 @@ WebSocket: ws://127.0.0.1:43110
 ```bash
 python3 -m http.server 43112 --bind 127.0.0.1 --directory extension
 ```
+
+Bridge 本身不提供 Cockpit 静态文件；本地 Web 模式必须额外运行上面的 loopback 静态服务器。项目 Skill 的 `bridge.sh serve` 只是对 Python 静态服务器的便利封装。
 
 浏览器打开：
 
@@ -157,12 +161,13 @@ SHELL_TO_CHROME_CWD=/absolute/path/to/project npm start
 
 ## 环境变量
 
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `SHELL_TO_CHROME_CWD` | 启动 Bridge 时的当前目录 | PTY 和 Claude Code 工作目录 |
-| `SHELL_TO_CHROME_PORT` | `43110` | Bridge 的 loopback 端口 |
-| `SHELL_TO_CHROME_TOKEN` | 每次启动随机生成 | 指定固定令牌；通常不建议 |
-| `SHELL` | 系统默认 Shell | PTY 使用的 Shell |
+| 变量 | 默认值 | 适用范围 | 说明 |
+|---|---|---|---|
+| `SHELL_TO_CHROME_CWD` | 启动 Bridge 时的当前目录 | Bridge | PTY 和 Claude Code 工作目录 |
+| `SHELL_TO_CHROME_PORT` | `43110` | Bridge 与项目 Skill | Bridge 的 loopback 端口 |
+| `SHELL_TO_CHROME_WEB_PORT` | `43112` | 项目 Skill | `serve` 和 `local-status` 使用的静态 Cockpit 端口；不是 Bridge 端口 |
+| `SHELL_TO_CHROME_TOKEN` | 每次启动随机生成 | Bridge | 指定固定令牌；通常不建议 |
+| `SHELL` | 系统默认 Shell | Bridge | PTY 使用的 Shell |
 
 使用其他 Bridge 端口：
 
@@ -188,7 +193,8 @@ ShellToChrome **不是安全沙箱**。成功连接页面的人可以操作该 B
 - 不要把终端输出、浏览器配置文件或令牌提交到 Git；
 - 使用专门的低权限系统账户；
 - 对不可信代码使用容器或虚拟机；
-- 关闭 Bridge 后，随机令牌自动失效；不再使用页面时可在连接设置中替换或清除保存的配置。
+- 关闭 Bridge 后，随机令牌自动失效；如果通过 `SHELL_TO_CHROME_TOKEN` 设置固定令牌，它会跨重启保持有效，应按长期凭据保护；
+- 不再使用页面时，可在连接设置中替换配置，或清除该 Origin 的站点数据 / 扩展存储。
 
 内置提示会阻止未经当前请求授权的破坏性、不可逆、凭据、持久化和外部发布操作，但提示本身不能替代操作系统级隔离。
 
@@ -233,11 +239,14 @@ printf 'SHELL_TO_CHROME_OK:%s\n' "$PWD"
 
 ### 页面显示“连接被拒绝”或“连接失败”
 
-检查：
+检查（使用其他 Bridge 端口时相应修改地址）：
 
 ```bash
-curl http://127.0.0.1:43110/health
+curl --fail --silent --show-error \
+  "http://127.0.0.1:${SHELL_TO_CHROME_PORT:-43110}/health"
 ```
+
+`/health` 只能确认指定端口有 Bridge 响应，并返回当前 workspace 供核对。它不能确认页面已经保存正确令牌、WebSocket 已鉴权、PTY 已创建、xterm 可输入，或 Claude Code 已安装和登录。
 
 然后确认：
 
