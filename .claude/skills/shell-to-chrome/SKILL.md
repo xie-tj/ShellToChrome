@@ -1,8 +1,7 @@
 ---
 name: shell-to-chrome
-description: Start and operate the local Shell to Chrome bridge so an AI can open a managed browser terminal, send commands, inspect output, restart or close the PTY, and use the Claude Code panel. Use when asked to control a terminal through Chrome, launch the Shell to Chrome cockpit, debug through the browser terminal, or verify the extension end to end.
-argument-hint: "[task or command to run]"
-allowed-tools: Read Bash(${CLAUDE_SKILL_DIR}/scripts/bridge.sh *)
+description: Start and operate the local Shell to Chrome bridge so an AI can open a managed browser terminal, send commands, inspect output, restart or close the PTY, use the Claude Code panel, or log in to an SSH host. Use when asked to control a terminal through Chrome, launch the Shell to Chrome cockpit, debug through the browser terminal, connect to an SSH server, or verify the extension end to end. Ensure ordinary ssh commands typed by the user or agent inside the managed terminal are restricted to publickey and gssapi-with-mic.
+allowed-tools: Read Bash(${CLAUDE_SKILL_DIR}/scripts/bridge.sh *) Bash(${CLAUDE_SKILL_DIR}/scripts/ssh-connect.sh *)
 ---
 
 # Shell to Chrome operator
@@ -16,6 +15,20 @@ Use the Shell to Chrome project to operate a real local PTY from its loopback we
 - Never print or persist the bridge token beyond what is required to connect the local extension.
 - The bridge listens only on loopback. Do not expose it on a public interface.
 - Do not claim control of an existing Terminal.app, SSH, Kubernetes, or tmux session. This project creates a new managed PTY unless a separate shared-session adapter has been configured.
+
+## SSH authentication policy
+
+When logging in to an SSH host from the cockpit:
+
+1. Treat a Bridge as SSH-policy capable only when `/health` reports `sshAuthenticationMethods` exactly containing `publickey` and `gssapi-with-mic`. A Bridge without that field is outdated and must not be handed off for SSH use.
+2. In the managed PTY, verify `command -v ssh` resolves to `<project-root>/bin/ssh`. If it does not, restart the Bridge and create a new PTY before connecting.
+3. Let the user or agent type the ordinary command `ssh destination`. It automatically tries only `publickey,gssapi-with-mic`. Use `ssh --auth publickey destination` or `ssh --auth gssapi-with-mic destination` only when an exact allowed method is requested.
+4. Do not use `/usr/bin/ssh`, another absolute SSH path, `sshpass`, `expect`, or a different SSH client. Do not alter `PATH` to bypass `<project-root>/bin/ssh`.
+5. The managed wrapper disables password, keyboard-interactive/challenge-response, and host-based authentication, sets password prompts to zero, and disables multiplexed-session reuse. User SSH configuration and later command-line `-o` options must not weaken these settings.
+6. For `publickey`, use an existing authorized key from the user's SSH configuration, agent, or an explicitly supplied identity file. Never generate, install, copy, or replace a key unless separately authorized.
+7. For `gssapi-with-mic`, use an existing Kerberos ticket. If a ticket is missing or expired, tell the user to obtain or renew it locally; never collect a Kerberos password in chat.
+8. If both allowed methods fail, stop and report the authentication failure. Never fall back to password or keyboard-interactive prompts.
+9. Verify the effective policy without connecting by running `ssh -G example.invalid`. When proof of a live negotiated method is required, use `ssh -v` and confirm OpenSSH reports `publickey` or `gssapi-with-mic` without exposing sensitive verbose details.
 
 ## Procedure
 
@@ -78,6 +91,8 @@ Launching is not enough. A successful terminal verification must show all of the
 
 When lifecycle behavior is part of the request, additionally verify a new PID after **重启** and `PID —` after **关闭**.
 
+For an SSH-capable handoff, additionally require `/health` to advertise the two allowed methods, verify `command -v ssh` points to `<project-root>/bin/ssh`, and confirm `ssh -G example.invalid` keeps password-style authentication disabled.
+
 ## Response
 
 Report concisely:
@@ -86,5 +101,6 @@ Report concisely:
 - workspace path;
 - terminal PID or lifecycle transition;
 - command/task executed and observed output;
+- for SSH tasks, the negotiated allowed authentication method or the no-fallback failure;
 - any skipped step or limitation;
 - whether processes started by this invocation remain running.

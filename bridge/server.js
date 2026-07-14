@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 import pty from "node-pty";
 import { WebSocketServer } from "ws";
 import { ClaudeRunner } from "./claude-runner.js";
+import {
+  ALLOWED_SSH_AUTHENTICATIONS,
+  createSshPolicyEnvironment,
+} from "./ssh-policy.js";
 import { TerminalSession } from "./terminal-session.js";
 import {
   isAllowedOrigin,
@@ -16,6 +20,11 @@ const HOST = "127.0.0.1";
 const PORT = Number.parseInt(process.env.SHELL_TO_CHROME_PORT || "43110", 10);
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WORKSPACE = path.resolve(process.env.SHELL_TO_CHROME_CWD || process.cwd());
+const TERMINAL_ENV = createSshPolicyEnvironment({
+  env: process.env,
+  shell: process.env.SHELL,
+  projectRoot: PROJECT_ROOT,
+});
 const connections = new Set();
 const AUTH_TOKEN = process.env.SHELL_TO_CHROME_TOKEN || randomBytes(24).toString("base64url");
 
@@ -41,7 +50,13 @@ const server = http.createServer((request, response) => {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
     });
-    response.end(JSON.stringify({ ok: true, workspace: WORKSPACE }));
+    response.end(
+      JSON.stringify({
+        ok: true,
+        workspace: WORKSPACE,
+        sshAuthenticationMethods: ALLOWED_SSH_AUTHENTICATIONS,
+      }),
+    );
     return;
   }
 
@@ -86,7 +101,12 @@ webSockets.on("connection", (socket) => {
   socket.on("close", cleanup);
 
   try {
-    terminal = new TerminalSession({ cwd: WORKSPACE, emit: send, spawn: pty.spawn });
+    terminal = new TerminalSession({
+      cwd: WORKSPACE,
+      emit: send,
+      spawn: pty.spawn,
+      env: TERMINAL_ENV,
+    });
     claude = new ClaudeRunner({ cwd: WORKSPACE, emit: send });
 
     send({
@@ -137,6 +157,7 @@ server.listen(PORT, HOST, () => {
   console.log(`  WebSocket: ws://${HOST}:${PORT}`);
   console.log(`  连接令牌:  ${AUTH_TOKEN}`);
   console.log(`  工作目录:  ${WORKSPACE}`);
+  console.log(`  SSH 认证:  ${ALLOWED_SSH_AUTHENTICATIONS.join(", ")}（托管终端内强制）`);
   console.log(`  扩展目录:  ${path.join(PROJECT_ROOT, "extension")}\n`);
 });
 

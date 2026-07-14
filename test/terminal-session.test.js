@@ -96,6 +96,18 @@ test("Windows PowerShell 不使用 Unix 登录参数", () => {
   assert.deepEqual(options[0].args, []);
 });
 
+test("bash 使用受控 rcfile 并在加载 profile 后应用 SSH 策略", () => {
+  const policyFile = "/project/bridge/bash-policy/bashrc";
+  const { session, options } = createHarness({
+    shell: "/bin/bash",
+    env: { HOME: "/home/test", SHELL_TO_CHROME_BASH_RCFILE: policyFile },
+  });
+
+  session.start();
+
+  assert.deepEqual(options[0].args, ["--noprofile", "--rcfile", policyFile, "-i"]);
+});
+
 test("新建和重启会替换当前终端并保留最新尺寸", () => {
   const { session, terminals, events, options } = createHarness();
 

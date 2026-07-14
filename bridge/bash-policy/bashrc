@@ -1,0 +1,16 @@
+readonly _shell_to_chrome_enforced_ssh_wrapper_dir="$SHELL_TO_CHROME_SSH_WRAPPER_DIR"
+
+if [[ -r /etc/profile ]]; then
+  source /etc/profile
+fi
+
+for _shell_to_chrome_profile in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+  if [[ -r "$_shell_to_chrome_profile" ]]; then
+    source "$_shell_to_chrome_profile"
+    break
+  fi
+done
+unset _shell_to_chrome_profile
+
+export PATH="$_shell_to_chrome_enforced_ssh_wrapper_dir:$PATH"
+hash -r
