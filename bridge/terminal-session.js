@@ -1,8 +1,17 @@
 import os from "node:os";
+import path from "node:path";
 import { createProcessTreeRetirer } from "./process-tree.js";
 import { sanitizeDimensions } from "./protocol.js";
 
 const MAX_INPUT_LENGTH = 64_000;
+
+export function getShellArguments({ shell, platform, env }) {
+  if (platform === "win32") return [];
+  if (path.basename(shell) === "bash" && env.SHELL_TO_CHROME_BASH_RCFILE) {
+    return ["--noprofile", "--rcfile", env.SHELL_TO_CHROME_BASH_RCFILE, "-i"];
+  }
+  return ["-l"];
+}
 
 export class TerminalSession {
   constructor({
@@ -34,16 +43,20 @@ export class TerminalSession {
     this.#retireCurrent();
 
     const generation = ++this.generation;
-    const terminal = this.spawn(this.shell, this.platform === "win32" ? [] : ["-l"], {
-      name: "xterm-256color",
-      ...this.size,
-      cwd: this.cwd,
-      env: {
-        ...this.env,
-        TERM: "xterm-256color",
-        COLORTERM: "truecolor",
+    const terminal = this.spawn(
+      this.shell,
+      getShellArguments({ shell: this.shell, platform: this.platform, env: this.env }),
+      {
+        name: "xterm-256color",
+        ...this.size,
+        cwd: this.cwd,
+        env: {
+          ...this.env,
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+        },
       },
-    });
+    );
     this.terminal = terminal;
 
     terminal.onData((data) => {

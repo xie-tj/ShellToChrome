@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ssh_bin=""
+for candidate in /usr/bin/ssh /bin/ssh; do
+  if [[ -x "$candidate" ]]; then
+    ssh_bin="$candidate"
+    break
+  fi
+done
+if [[ -z "$ssh_bin" && -x "${SHELL_TO_CHROME_REAL_SSH:-}" ]]; then
+  ssh_bin="$SHELL_TO_CHROME_REAL_SSH"
+fi
+if [[ -z "$ssh_bin" || ! -x "$ssh_bin" ]]; then
+  printf 'Native OpenSSH client not found.\n' >&2
+  exit 127
+fi
+
+auth_mode="auto"
+case "${1:-}" in
+  --auth)
+    if (( $# < 2 )); then
+      printf 'Usage: ssh [--auth publickey|gssapi-with-mic|auto] [ssh-options] destination [command]\n' >&2
+      exit 2
+    fi
+    auth_mode="$2"
+    shift 2
+    ;;
+  --auth=*)
+    auth_mode="${1#--auth=}"
+    shift
+    ;;
+esac
+
+case "$auth_mode" in
+  auto)
+    preferred_authentications="publickey,gssapi-with-mic"
+    pubkey_authentication="yes"
+    gssapi_authentication="yes"
+    ;;
+  publickey)
+    preferred_authentications="publickey"
+    pubkey_authentication="yes"
+    gssapi_authentication="no"
+    ;;
+  gssapi-with-mic)
+    preferred_authentications="gssapi-with-mic"
+    pubkey_authentication="no"
+    gssapi_authentication="yes"
+    ;;
+  *)
+    printf 'Unsupported SSH authentication method: %s\n' "$auth_mode" >&2
+    printf 'Allowed methods: publickey, gssapi-with-mic\n' >&2
+    exit 2
+    ;;
+esac
+
+exec "$ssh_bin" \
+  -o PreferredAuthentications="$preferred_authentications" \
+  -o PubkeyAuthentication="$pubkey_authentication" \
+  -o GSSAPIAuthentication="$gssapi_authentication" \
+  -o PasswordAuthentication=no \
+  -o KbdInteractiveAuthentication=no \
+  -o ChallengeResponseAuthentication=no \
+  -o HostbasedAuthentication=no \
+  -o NumberOfPasswordPrompts=0 \
+  -o ControlMaster=no \
+  -o ControlPath=none \
+  -o ControlPersist=no \
+  "$@"

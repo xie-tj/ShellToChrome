@@ -7,6 +7,7 @@
 ## 功能
 
 - 在 Chrome / Chromium 中操作真实的本地 PTY 终端；
+- 在托管终端中直接输入普通 `ssh` 时，强制仅使用 `publickey` 或 `gssapi-with-mic`；
 - 创建、重启、关闭终端以及清除浏览器显示；
 - 将任务交给本机 Claude Code CLI，并显示文本、工具调用和执行状态；
 - 页面断线后自动重连；
@@ -122,6 +123,32 @@ http://127.0.0.1:43112/index.html
 | 清屏 | 只清除浏览器中的显示，不影响 Shell 进程 |
 
 这是 Bridge 新建并管理的 PTY，不是对现有 Terminal.app、SSH、tmux 或 Kubernetes 会话的接管。
+
+#### SSH 登录认证
+
+托管终端会把项目的 SSH 策略 wrapper 放在 `PATH` 首位。你可以像平常一样直接输入：
+
+```bash
+ssh user@example.internal
+```
+
+默认按 `publickey,gssapi-with-mic` 顺序尝试。也可以明确选择其中一种：
+
+```bash
+ssh --auth publickey user@example.internal
+ssh --auth gssapi-with-mic user@example.internal
+```
+
+该 wrapper 仍然调用系统 OpenSSH，但会固定关闭 password、keyboard-interactive / challenge-response 和 hostbased 认证，把密码提示次数设为零，并禁止复用认证来源不明的 multiplexed 会话。用户的 `~/.ssh/config` 或命令行中后置的 `-o PasswordAuthentication=yes` 等选项不能覆盖这些限制。
+
+可在 Cockpit 中确认策略已经生效：
+
+```bash
+command -v ssh
+ssh -G example.invalid | grep -E '^(preferredauthentications|passwordauthentication|kbdinteractiveauthentication|gssapiauthentication|pubkeyauthentication) '
+```
+
+`command -v ssh` 应指向本项目的 `bin/ssh`。更新项目后需要重启 Bridge；新建或重启 PTY 才会获得新的 SSH 策略环境。策略只约束托管终端中按名称调用的 `ssh`，不是操作系统沙箱；不要改用 `/usr/bin/ssh` 绝对路径或其他 SSH 客户端绕过它。
 
 ### 5. 使用 Claude Code 面板
 
@@ -247,6 +274,8 @@ curl --fail --silent --show-error \
 ```
 
 `/health` 只能确认指定端口有 Bridge 响应，并返回当前 workspace 供核对。它不能确认页面已经保存正确令牌、WebSocket 已鉴权、PTY 已创建、xterm 可输入，或 Claude Code 已安装和登录。
+
+新版 Bridge 的 `/health` 还会返回 `sshAuthenticationMethods: ["publickey", "gssapi-with-mic"]`。缺少该字段表示运行中的 Bridge 尚未加载托管终端 SSH 策略，需要重启或改用新版 Bridge。
 
 然后确认：
 
