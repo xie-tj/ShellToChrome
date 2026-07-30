@@ -131,6 +131,8 @@ test("zsh 登录配置重置 PATH 后，用户输入普通 ssh 仍命中受限 w
       path.join(home, ".zshrc"),
       'export PATH=/usr/bin:/bin\nexport HISTFILE="$ZDOTDIR/.zsh_history"\n',
     );
+    const policyHistory = path.join(PROJECT_ROOT, "bridge", "zsh-policy", ".zsh_history");
+    const historyBefore = fs.existsSync(policyHistory) ? fs.statSync(policyHistory) : null;
     const environment = createSshPolicyEnvironment({
       env: { ...process.env, HOME: home, PATH: process.env.PATH, SHELL: "/bin/zsh" },
       platform: process.platform,
@@ -149,7 +151,9 @@ test("zsh 登录配置重置 PATH 后，用户输入普通 ssh 仍命中受限 w
 
     assert.equal(resolvedSsh, path.join(PROJECT_ROOT, "bin", "ssh"));
     assert.equal(historyFile, `__HISTFILE__${path.join(home, ".zsh_history")}`);
-    assert.equal(fs.existsSync(path.join(PROJECT_ROOT, "bridge", "zsh-policy", ".zsh_history")), false);
+    const historyAfter = fs.existsSync(policyHistory) ? fs.statSync(policyHistory) : null;
+    assert.equal(historyAfter?.mtimeMs, historyBefore?.mtimeMs);
+    assert.equal(historyAfter?.size, historyBefore?.size);
     assertRestrictedConfig(parseSshConfig(configLines.join("\n")), {
       preferred: "publickey,gssapi-with-mic",
       pubkey: "true",

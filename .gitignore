@@ -7,3 +7,5 @@ extension/vendor/
 .chrome-test-profile/
 .chromium-test-profile/
 screenshot-*.png
+bridge/zsh-policy/.zsh_history
+bridge/zsh-policy/.zsh_sessions/
